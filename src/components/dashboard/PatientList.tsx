@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, User, Phone, Mail, Calendar, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { supabase, isMockSupabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Patient {
@@ -40,13 +40,8 @@ const PatientList: React.FC = () => {
   useEffect(() => {
     const loadPatients = async () => {
       if (!user) return;
-      let response;
-      if (isMockSupabase) {
-        response = await supabase.from('patients').select('*').execute();
-      } else {
-        response = await supabase.from('patients').select('*');
-      }
-  const data = (response?.data as unknown as PatientRow[]) || [];
+      const response = await supabase.from('patients').select('*');
+      const data = (response?.data as unknown as PatientRow[]) || [];
       const mapped: Patient[] = data
         .filter(p => {
           if (user.role === 'Intern/Student') return p.created_by === user.id;

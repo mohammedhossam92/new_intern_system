@@ -25,7 +25,7 @@ const SignIn: React.FC = () => {
       if (success) {
         navigate('/dashboard');
       } else {
-        setError('Invalid email or password. Try student@dental.com / password');
+        setError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (err) {
       setError('Login failed. Please try again.');
@@ -165,14 +165,6 @@ const SignIn: React.FC = () => {
                 Sign up here
               </Link>
             </p>
-          </div>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Demo Credentials:</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Student: student@dental.com / password</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Doctor: doctor@dental.com / password</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">Admin: admin@dental.com / password</p>
           </div>
         </div>
       </div>
