@@ -1,14 +1,19 @@
-// Supabase client hybrid: uses real Supabase if env vars provided, otherwise falls back to mock in-memory implementation.
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-let realClient: SupabaseClient | null = null;
-if (supabaseUrl && supabaseAnonKey) {
-  realClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { autoRefreshToken: true, persistSession: true } });
-}
+const realClient: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
 
 type UserRole = 'Intern/Student' | 'Doctor' | 'Supervisor' | 'Admin';
 
@@ -289,11 +294,7 @@ const mock = {
   }
 };
 
-export const supabase: any = realClient ?? mock;
-export const isMockSupabase = !realClient;
+export const supabase = realClient;
+export const isMockSupabase = false;
 
-if (realClient) {
-  console.log('[Supabase] Using REAL Supabase backend');
-} else {
-  console.log('[Supabase] Using MOCK in-memory backend');
-}
+console.log('[Supabase] Using REAL Supabase backend with Realtime enabled');
