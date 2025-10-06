@@ -2,22 +2,20 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/supabase';
 
-type UserRole = 'Intern/Student' | 'Doctor' | 'Supervisor' | 'Admin';
+type UserRole = 'Intern/Student' | 'Doctor' | 'Admin';
 
 interface User {
   id: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  mobile: string;
-  university: string;
+  phone: string | null;
+  university: string | null;
   role: UserRole;
-  isApproved: boolean;
-  city?: string;
-  registrationStatus?: string;
-  classYear?: string;
-  workingDays?: string;
-  currentPeriodStartDate?: string;
-  currentPeriodEndDate?: string;
+  profileImage?: string | null;
+  graduationYear?: number | null;
+  specialization?: string | null;
+  bio?: string | null;
 }
 
 interface AuthContextType {
@@ -25,7 +23,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  signup: (userData: Omit<User, 'id' | 'isApproved'>) => Promise<boolean>;
+  signup: (userData: Omit<User, 'id'> & { password: string }) => Promise<boolean>;
   updateProfile: (userData: Partial<User>) => Promise<boolean>;
 }
 
@@ -54,25 +52,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .from('users')
             .select('*')
             .eq('id', session.user.id)
-            .single();
-            
+            .maybeSingle();
+
           if (error) throw error;
-          
+
           if (userData) {
             setUser({
               id: userData.id,
-              fullName: userData.full_name,
+              firstName: userData.first_name,
+              lastName: userData.last_name,
               email: userData.email,
-              mobile: userData.mobile,
+              phone: userData.phone,
               university: userData.university,
               role: userData.role,
-              isApproved: userData.is_approved,
-              city: userData.city,
-              registrationStatus: userData.registration_status,
-              classYear: userData.class_year,
-              workingDays: userData.working_days,
-              currentPeriodStartDate: userData.current_period_start_date,
-              currentPeriodEndDate: userData.current_period_end_date
+              profileImage: userData.profile_image,
+              graduationYear: userData.graduation_year,
+              specialization: userData.specialization,
+              bio: userData.bio
             });
           }
         }
@@ -87,34 +83,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          const { data: userData, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (!error && userData) {
-            setUser({
-              id: userData.id,
-              fullName: userData.full_name,
-              email: userData.email,
-              mobile: userData.mobile,
-              university: userData.university,
-              role: userData.role,
-              isApproved: userData.is_approved,
-              city: userData.city,
-              registrationStatus: userData.registration_status,
-              classYear: userData.class_year,
-              workingDays: userData.working_days,
-              currentPeriodStartDate: userData.current_period_start_date,
-              currentPeriodEndDate: userData.current_period_end_date
-            });
+      (event, session) => {
+        (async () => {
+          if (event === 'SIGNED_IN' && session) {
+            const { data: userData, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
+
+            if (!error && userData) {
+              setUser({
+                id: userData.id,
+                firstName: userData.first_name,
+                lastName: userData.last_name,
+                email: userData.email,
+                phone: userData.phone,
+                university: userData.university,
+                role: userData.role,
+                profileImage: userData.profile_image,
+                graduationYear: userData.graduation_year,
+                specialization: userData.specialization,
+                bio: userData.bio
+              });
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
           }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-        }
+        })();
       }
     );
     
@@ -138,25 +134,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .from('users')
           .select('*')
           .eq('id', authData.user.id)
-          .single();
-          
+          .maybeSingle();
+
         if (userError) throw userError;
-        
+
         if (userData) {
           setUser({
             id: userData.id,
-            fullName: userData.full_name,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
             email: userData.email,
-            mobile: userData.mobile,
+            phone: userData.phone,
             university: userData.university,
             role: userData.role,
-            isApproved: userData.is_approved,
-            city: userData.city,
-            registrationStatus: userData.registration_status,
-            classYear: userData.class_year,
-            workingDays: userData.working_days,
-            currentPeriodStartDate: userData.current_period_start_date,
-            currentPeriodEndDate: userData.current_period_end_date
+            profileImage: userData.profile_image,
+            graduationYear: userData.graduation_year,
+            specialization: userData.specialization,
+            bio: userData.bio
           });
           return true;
         }
@@ -183,39 +177,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signup = async (userData: Omit<User, 'id' | 'isApproved'>): Promise<boolean> => {
+  const signup = async (userData: Omit<User, 'id'> & { password: string }): Promise<boolean> => {
     try {
       setLoading(true);
-      
-      // Create auth user
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
-        password: 'password', // In a real app, this would be provided by the user
-        options: {
-          data: {
-            full_name: userData.fullName
-          }
-        }
+        password: userData.password
       });
-      
+
       if (authError) throw authError;
-      
+
       if (authData.user) {
-        // Create user profile in the users table
         const { error: profileError } = await supabase
           .from('users')
           .insert({
             id: authData.user.id,
             email: userData.email,
-            full_name: userData.fullName,
-            mobile: userData.mobile,
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+            phone: userData.phone,
             university: userData.university,
-            role: userData.role,
-            is_approved: false // New users need approval
+            role: userData.role
           });
-          
+
         if (profileError) throw profileError;
-        
+
         return true;
       }
       return false;
@@ -230,31 +217,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateProfile = async (userData: Partial<User>): Promise<boolean> => {
     try {
       if (!user) return false;
-      
+
       setLoading(true);
-      
-      // Convert from camelCase to snake_case for database
+
       const dbData: any = {};
-      if (userData.fullName) dbData.full_name = userData.fullName;
-      if (userData.mobile) dbData.mobile = userData.mobile;
-      if (userData.university) dbData.university = userData.university;
-      if (userData.city) dbData.city = userData.city;
-      if (userData.registrationStatus) dbData.registration_status = userData.registrationStatus;
-      if (userData.classYear) dbData.class_year = userData.classYear;
-      if (userData.workingDays) dbData.working_days = userData.workingDays;
-      if (userData.currentPeriodStartDate) dbData.current_period_start_date = userData.currentPeriodStartDate;
-      if (userData.currentPeriodEndDate) dbData.current_period_end_date = userData.currentPeriodEndDate;
-      
+      if (userData.firstName !== undefined) dbData.first_name = userData.firstName;
+      if (userData.lastName !== undefined) dbData.last_name = userData.lastName;
+      if (userData.phone !== undefined) dbData.phone = userData.phone;
+      if (userData.university !== undefined) dbData.university = userData.university;
+      if (userData.profileImage !== undefined) dbData.profile_image = userData.profileImage;
+      if (userData.graduationYear !== undefined) dbData.graduation_year = userData.graduationYear;
+      if (userData.specialization !== undefined) dbData.specialization = userData.specialization;
+      if (userData.bio !== undefined) dbData.bio = userData.bio;
+
       const { error } = await supabase
         .from('users')
         .update(dbData)
         .eq('id', user.id);
-        
+
       if (error) throw error;
-      
-      // Update local user state
+
       setUser(prev => prev ? { ...prev, ...userData } : null);
-      
+
       return true;
     } catch (error) {
       console.error('Profile update error:', error);
