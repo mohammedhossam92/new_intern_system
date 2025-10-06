@@ -1,21 +1,30 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Database } from '../types/supabase';
 
 type UserRole = 'Intern/Student' | 'Doctor' | 'Admin';
 
 interface User {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName: string;            // Given name from DB (first_name)
+  lastName: string;             // Surname from DB (last_name)
+  fullName: string;             // Convenience (first + last) for UI components
   email: string;
-  phone: string | null;
+  phone: string | null;         // Raw phone field from DB
+  mobile?: string | null;       // Alias expected by some components (StudentProfile uses mobile)
   university: string | null;
   role: UserRole;
   profileImage?: string | null;
   graduationYear?: number | null;
   specialization?: string | null;
   bio?: string | null;
+  // Extra optional fields that some dashboard components assume may exist
+  city?: string | null;
+  registrationStatus?: string | null;
+  classYear?: string | null;
+  workingDays?: string | null;
+  currentPeriodStartDate?: string | null;
+  currentPeriodEndDate?: string | null;
+  isApproved?: boolean | null;
 }
 
 interface AuthContextType {
@@ -40,13 +49,13 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
+
   // Check for existing session on mount
   useEffect(() => {
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session) {
           const { data: userData, error } = await supabase
             .from('users')
@@ -61,14 +70,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               id: userData.id,
               firstName: userData.first_name,
               lastName: userData.last_name,
+              fullName: [userData.first_name, userData.last_name].filter(Boolean).join(' ').trim(),
               email: userData.email,
               phone: userData.phone,
+              mobile: userData.phone, // alias for components using mobile
               university: userData.university,
-              role: userData.role,
+              role: userData.role as UserRole,
               profileImage: userData.profile_image,
               graduationYear: userData.graduation_year,
               specialization: userData.specialization,
-              bio: userData.bio
+              bio: userData.bio,
+              // Optional fields (will exist if added later to schema)
+              city: userData.city ?? null,
+              registrationStatus: userData.registration_status ?? null,
+              classYear: userData.class_year ?? null,
+              workingDays: userData.working_days ?? null,
+              currentPeriodStartDate: userData.current_period_start_date ?? null,
+              currentPeriodEndDate: userData.current_period_end_date ?? null,
+              isApproved: userData.is_approved ?? null
             });
           }
         }
@@ -78,9 +97,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setLoading(false);
       }
     };
-    
+
     checkSession();
-    
+
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -97,14 +116,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 id: userData.id,
                 firstName: userData.first_name,
                 lastName: userData.last_name,
+                fullName: [userData.first_name, userData.last_name].filter(Boolean).join(' ').trim(),
                 email: userData.email,
                 phone: userData.phone,
+                mobile: userData.phone,
                 university: userData.university,
-                role: userData.role,
+                role: userData.role as UserRole,
                 profileImage: userData.profile_image,
                 graduationYear: userData.graduation_year,
                 specialization: userData.specialization,
-                bio: userData.bio
+                bio: userData.bio,
+                city: userData.city ?? null,
+                registrationStatus: userData.registration_status ?? null,
+                classYear: userData.class_year ?? null,
+                workingDays: userData.working_days ?? null,
+                currentPeriodStartDate: userData.current_period_start_date ?? null,
+                currentPeriodEndDate: userData.current_period_end_date ?? null,
+                isApproved: userData.is_approved ?? null
               });
             }
           } else if (event === 'SIGNED_OUT') {
@@ -113,7 +141,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         })();
       }
     );
-    
+
     return () => {
       subscription.unsubscribe();
     };
@@ -126,9 +154,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email,
         password
       });
-      
+
       if (authError) throw authError;
-      
+
       if (authData.user) {
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -143,14 +171,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: userData.id,
             firstName: userData.first_name,
             lastName: userData.last_name,
+            fullName: [userData.first_name, userData.last_name].filter(Boolean).join(' ').trim(),
             email: userData.email,
             phone: userData.phone,
+            mobile: userData.phone,
             university: userData.university,
-            role: userData.role,
+            role: userData.role as UserRole,
             profileImage: userData.profile_image,
             graduationYear: userData.graduation_year,
             specialization: userData.specialization,
-            bio: userData.bio
+            bio: userData.bio,
+            city: userData.city ?? null,
+            registrationStatus: userData.registration_status ?? null,
+            classYear: userData.class_year ?? null,
+            workingDays: userData.working_days ?? null,
+            currentPeriodStartDate: userData.current_period_start_date ?? null,
+            currentPeriodEndDate: userData.current_period_end_date ?? null,
+            isApproved: userData.is_approved ?? null
           });
           return true;
         }
@@ -189,17 +226,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (authError) throw authError;
 
       if (authData.user) {
+        const insertData: Record<string, unknown> = {
+          id: authData.user.id,
+          email: userData.email,
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          phone: userData.phone,
+          university: userData.university,
+          role: userData.role
+        };
+
+        // Add optional fields if provided
+        if (userData.city) insertData.city = userData.city;
+        if (userData.classYear) insertData.class_year = userData.classYear;
+        if (userData.workingDays) insertData.working_days = userData.workingDays;
+        if (userData.registrationStatus) insertData.registration_status = userData.registrationStatus;
+        if (userData.currentPeriodStartDate) insertData.current_period_start_date = userData.currentPeriodStartDate;
+        if (userData.currentPeriodEndDate) insertData.current_period_end_date = userData.currentPeriodEndDate;
+
         const { error: profileError } = await supabase
           .from('users')
-          .insert({
-            id: authData.user.id,
-            email: userData.email,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            phone: userData.phone,
-            university: userData.university,
-            role: userData.role
-          });
+          .insert(insertData);
 
         if (profileError) throw profileError;
 
@@ -213,22 +260,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
     }
   };
-  
+
   const updateProfile = async (userData: Partial<User>): Promise<boolean> => {
     try {
       if (!user) return false;
 
       setLoading(true);
 
-      const dbData: any = {};
-      if (userData.firstName !== undefined) dbData.first_name = userData.firstName;
-      if (userData.lastName !== undefined) dbData.last_name = userData.lastName;
+      const dbData: Record<string, unknown> = {};
+
+      // Handle fullName: if only fullName is provided, split it into firstName and lastName
+      if (userData.fullName && !userData.firstName && !userData.lastName) {
+        const parts = userData.fullName.trim().split(/\s+/);
+        dbData.first_name = parts[0] || '';
+        dbData.last_name = parts.slice(1).join(' ') || '';
+      } else {
+        // Otherwise use firstName and lastName directly if provided
+        if (userData.firstName !== undefined) dbData.first_name = userData.firstName;
+        if (userData.lastName !== undefined) dbData.last_name = userData.lastName;
+      }
+
       if (userData.phone !== undefined) dbData.phone = userData.phone;
       if (userData.university !== undefined) dbData.university = userData.university;
       if (userData.profileImage !== undefined) dbData.profile_image = userData.profileImage;
       if (userData.graduationYear !== undefined) dbData.graduation_year = userData.graduationYear;
       if (userData.specialization !== undefined) dbData.specialization = userData.specialization;
       if (userData.bio !== undefined) dbData.bio = userData.bio;
+      // Add new student profile fields
+      if (userData.city !== undefined) dbData.city = userData.city;
+      if (userData.classYear !== undefined) dbData.class_year = userData.classYear;
+      if (userData.workingDays !== undefined) dbData.working_days = userData.workingDays;
+      if (userData.registrationStatus !== undefined) dbData.registration_status = userData.registrationStatus;
+      if (userData.currentPeriodStartDate !== undefined) dbData.current_period_start_date = userData.currentPeriodStartDate;
+      if (userData.currentPeriodEndDate !== undefined) dbData.current_period_end_date = userData.currentPeriodEndDate;
 
       const { error } = await supabase
         .from('users')
@@ -237,7 +301,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) throw error;
 
-      setUser(prev => prev ? { ...prev, ...userData } : null);
+      setUser(prev => {
+        if (!prev) return null;
+        const updated = { ...prev, ...userData } as User;
+        // Recompute fullName if parts changed OR if only fullName passed (split assumption: first token -> firstName, rest -> lastName)
+        if (userData.fullName && !userData.firstName && !userData.lastName) {
+          const parts = userData.fullName.trim().split(/\s+/);
+          updated.firstName = parts[0] || '';
+          updated.lastName = parts.slice(1).join(' ') || '';
+        }
+        if (userData.firstName !== undefined || userData.lastName !== undefined || userData.fullName !== undefined) {
+          updated.fullName = [updated.firstName, updated.lastName].filter(Boolean).join(' ').trim();
+        }
+        // Keep mobile alias in sync with phone
+        if (userData.phone !== undefined) {
+          updated.mobile = userData.phone;
+        }
+        return updated;
+      });
 
       return true;
     } catch (error) {

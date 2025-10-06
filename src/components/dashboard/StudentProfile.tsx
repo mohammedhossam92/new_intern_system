@@ -1,19 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { internshipService, InternshipPeriod } from '../../services/internshipService';
 import QuickActions from './QuickActions';
 import RecentActivity from './RecentActivity';
 import { User, Mail, Phone, GraduationCap, Calendar, MapPin, Edit2, Save, X, Building, Clock, CheckCircle, Plus } from 'lucide-react';
 
-interface InternshipPeriod {
-  id: number;
-  location: string;
-  round?: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
-}
-
 const StudentProfile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [hasBeenSaved, setHasBeenSaved] = useState(false); // Track if profile has been saved before
   const [formData, setFormData] = useState({
@@ -29,33 +22,35 @@ const StudentProfile: React.FC = () => {
     currentPeriodEndDate: user?.currentPeriodEndDate || '',
   });
 
-  // Mock admin role check - in real app this would come from auth context
-  const isAdmin = user?.role === 'admin' || false;
+  // Check if user is admin
+  const isAdmin = user?.role === 'Admin' || false;
 
-  // Internship periods state (status derived from dates)
-  const [internshipPeriods, setInternshipPeriods] = useState<InternshipPeriod[]>([
-    {
-      id: 1,
-      location: 'City General Hospital',
-      round: '1st Round',
-      startDate: '2024-01-15',
-      endDate: '2024-03-15',
-    },
-    {
-      id: 2,
-      location: 'Metropolitan Dental Center',
-      round: '2nd Round',
-      startDate: '2024-03-16',
-      endDate: '2024-05-15',
-    },
-    {
-      id: 3,
-      location: 'University Dental Clinic',
-      round: '3rd Round',
-      startDate: '2024-05-16',
-      endDate: '2024-07-15',
-    }
-  ]);
+  // Internship periods state (loaded from database)
+  const [internshipPeriods, setInternshipPeriods] = useState<InternshipPeriod[]>([]);
+
+  // Load internship periods from database
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadInternshipPeriods = async () => {
+      const periods = await internshipService.getUserInternshipPeriods(user.id);
+      setInternshipPeriods(periods);
+    };
+
+    loadInternshipPeriods();
+
+    // Subscribe to real-time updates
+    const unsubscribe = internshipService.subscribeToInternshipPeriods(
+      user.id,
+      (periods) => {
+        setInternshipPeriods(periods);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id]);
 
   const computeStatus = (period: Pick<InternshipPeriod, 'startDate' | 'endDate'>) => {
     const today = new Date();
@@ -74,53 +69,59 @@ const StudentProfile: React.FC = () => {
 
   const resetNewPeriod = () => setNewPeriod({ location: '', round: '', startDate: '', endDate: '' });
 
-  const handleAddPeriod = () => {
-    if (!isAdmin) return;
+  const handleAddPeriod = async () => {
+    if (!isAdmin || !user?.id) return;
     if (!newPeriod.location || !newPeriod.startDate || !newPeriod.endDate) return;
 
-    const periodToAdd: InternshipPeriod = {
-      id: Date.now(),
+    const addedPeriod = await internshipService.addInternshipPeriod({
+      userId: user.id,
       location: newPeriod.location,
       round: newPeriod.round || undefined,
       startDate: newPeriod.startDate,
       endDate: newPeriod.endDate,
-    };
+      status: 'in_progress',
+      totalRequiredHours: 160
+    });
 
-    setInternshipPeriods(prev => [periodToAdd, ...prev]);
-    // Also update current period on profile
-    setFormData(prev => ({
-      ...prev,
-      currentPeriodStartDate: newPeriod.startDate,
-      currentPeriodEndDate: newPeriod.endDate,
-    }));
+    if (addedPeriod) {
+      // Also update current period on profile
+      await updateProfile({
+        currentPeriodStartDate: newPeriod.startDate,
+        currentPeriodEndDate: newPeriod.endDate,
+      });
 
-    resetNewPeriod();
-    setShowAddPeriod(false);
+      resetNewPeriod();
+      setShowAddPeriod(false);
+    } else {
+      alert('Failed to add internship period. Please try again.');
+    }
   };
 
-  // Auto-sync: when profile current period dates change, ensure a matching history item exists
-  useEffect(() => {
-    const { currentPeriodStartDate, currentPeriodEndDate } = formData;
-    if (!currentPeriodStartDate || !currentPeriodEndDate) return;
+  const handleSave = async () => {
+    // Update the user data via AuthContext
+    const success = await updateProfile({
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.mobile,
+      mobile: formData.mobile,
+      university: formData.university,
+      city: formData.city,
+      registrationStatus: formData.registrationStatus,
+      classYear: formData.classYear,
+      workingDays: formData.workingDays,
+      currentPeriodStartDate: formData.currentPeriodStartDate,
+      currentPeriodEndDate: formData.currentPeriodEndDate,
+    });
 
-    const exists = internshipPeriods.some(p => p.startDate === currentPeriodStartDate && p.endDate === currentPeriodEndDate);
-    if (!exists) {
-      // Insert a placeholder entry if none exists yet (admin can refine via Add form)
-      const placeholder: InternshipPeriod = {
-        id: Date.now(),
-        location: 'Not specified',
-        startDate: currentPeriodStartDate,
-        endDate: currentPeriodEndDate,
-      };
-      setInternshipPeriods(prev => [placeholder, ...prev]);
+    if (success) {
+      console.log('Profile updated successfully');
+      setHasBeenSaved(true);
+      setIsEditing(false);
+    } else {
+      console.error('Failed to update profile');
+      // Optionally show an error message to the user
+      alert('Failed to update profile. Please try again.');
     }
-  }, [formData.currentPeriodStartDate, formData.currentPeriodEndDate]);
-
-  const handleSave = () => {
-    // In a real app, this would update the user data via API
-    console.log('Saving profile data:', formData);
-    setHasBeenSaved(true);
-    setIsEditing(false);
   };
 
   const handleCancel = () => {
