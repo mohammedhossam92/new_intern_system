@@ -78,7 +78,7 @@ const AddPatient: React.FC = () => {
           allergies: formData.allergies.trim() || null,
           notes: formData.notes.trim() || null,
           status: 'pending',
-          created_by: user.id,
+          added_by: user.id,  // Fixed: changed from created_by to added_by to match DB column
         })
         .select()
         .single();

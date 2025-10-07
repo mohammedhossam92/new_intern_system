@@ -197,15 +197,14 @@ const PatientProfile: React.FC = () => {
       .from('treatments')
       .insert({
         patient_id: patientId,
-        tooth_number: treatment.toothNumber,
-        type: treatment.type,
+        student_id: user.id,  // Fixed: use student_id instead of created_by
+        treatment_type: treatment.type,  // Fixed: use treatment_type instead of type
+        description: treatment.notes || 'Treatment',  // Fixed: added required description field
+        teeth_numbers: [treatment.toothNumber],  // Fixed: use teeth_numbers array
+        status: 'pending',  // Fixed: use valid status from CHECK constraint
         start_date: treatment.startDate,
         end_date: treatment.endDate,
-        status: treatment.status,
         notes: treatment.notes,
-        priority: treatment.priority,
-        created_by: user.id,
-        approval_status: 'pending'
       })
       .select()
       .single();

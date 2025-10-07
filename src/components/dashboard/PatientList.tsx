@@ -26,7 +26,7 @@ interface PatientRow {
   date_of_birth: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at?: string;
-  created_by: string;
+  added_by: string;  // Fixed: matches DB column name
 }
 
 const PatientList: React.FC = () => {
@@ -44,7 +44,7 @@ const PatientList: React.FC = () => {
       const data = (response?.data as unknown as PatientRow[]) || [];
       const mapped: Patient[] = data
         .filter(p => {
-          if (user.role === 'Intern/Student') return p.created_by === user.id;
+          if (user.role === 'Intern/Student') return p.added_by === user.id;  // Fixed: matches DB column
           return true; // approvers see all
         })
         .map(p => ({
