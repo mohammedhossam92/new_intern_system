@@ -18,6 +18,7 @@ import ToothChart from './ToothChart';
 import TreatmentModal from './TreatmentModal';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { notificationService } from '../../services/notificationService';
 
 interface Treatment {
   id: string;
@@ -59,7 +60,7 @@ const PatientProfile: React.FC = () => {
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const isStudent = user?.role === 'Intern/Student';
-  const canApprove = user?.role === 'Supervisor' || user?.role === 'Admin' || user?.role === 'Doctor';
+  const canApprove = user?.role === 'Admin' || user?.role === 'Doctor';
 
   // Load patient and treatments
   useEffect(() => {
@@ -94,8 +95,7 @@ const PatientProfile: React.FC = () => {
       const { data: tData } = await supabase
         .from('treatments')
         .select('*')
-        .eq('patient_id', patientId)
-        .execute();
+        .eq('patient_id', patientId);
       const rows = (tData as unknown as Array<Record<string, unknown>>) || [];
       const mapped: Treatment[] = rows
         .filter(t => (isStudent ? (t.approval_status as string) === 'approved' : true))
@@ -226,21 +226,51 @@ const PatientProfile: React.FC = () => {
   };
 
   const approvePatient = async () => {
-    if (!patientId) return;
-    await supabase
+    if (!patientId || !patient) return;
+
+    // Get patient data to find the student who added it
+    const { data: patientData } = await supabase
+      .from('patients')
+      .select('added_by')
+      .eq('id', patientId)
+      .single();
+
+    if (!patientData) return;
+
+    // Update patient status
+    const { error } = await supabase
       .from('patients')
       .update({ status: 'approved' })
-      .eq('id', patientId)
-      .execute();
-    setPatient(prev => prev ? { ...prev, status: 'approved' } : prev);
+      .eq('id', patientId);
+
+    if (error) {
+      console.error('Error approving patient:', error);
+      return;
+    }
+
+    // Update local state
+    setPatient(prev => prev ? { ...prev, status: 'approved' as const } : prev);
+
+    // Send notification to the student
+    const approverName = user?.fullName || `${user?.firstName} ${user?.lastName}`;
+    const patientName = `${patient.firstName} ${patient.lastName}`;
+
+    await notificationService.notifyPatientApprovalStatus(
+      patientData.added_by,
+      patientId,
+      patientName,
+      true,
+      approverName
+    );
+
+    console.log('Patient approved and notification sent to student');
   };
 
   const approveTreatment = async (treatmentId: string) => {
     await supabase
       .from('treatments')
       .update({ approval_status: 'approved' })
-      .eq('id', treatmentId)
-      .execute();
+      .eq('id', treatmentId);
     setTreatments(prev => prev.map(t => t.id === treatmentId ? { ...t, approvalStatus: 'approved' } : t));
   };
   if (!patient) {
@@ -295,6 +325,29 @@ const PatientProfile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Patient Status Banner for Approvers */}
+      {canApprove && patient.status === 'pending' && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                Patient Pending Approval
+              </h3>
+              <p className="text-sm text-blue-800 dark:text-blue-400 mb-3">
+                This patient was added by a student and requires approval before they can add treatments. Review the patient information below.
+              </p>
+              <button
+                onClick={approvePatient}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Approve Patient
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-slate-200 dark:border-slate-700">
@@ -477,7 +530,11 @@ const PatientProfile: React.FC = () => {
             </div>
             <ToothChart treatments={treatments} onToothSelect={handleToothSelect} />
             {isStudent && patient.status !== 'approved' && (
-              <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">Patient is not approved yet. Treatments will be hidden until approval.</p>
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  ⏳ <strong>Waiting for Approval:</strong> You cannot add treatments until this patient is approved by a supervisor. You'll receive a notification once approved.
+                </p>
+              </div>
             )}
           </div>
 

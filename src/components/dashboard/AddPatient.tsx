@@ -3,6 +3,7 @@ import { User, Mail, Phone, Calendar, MapPin, FileText, CheckCircle, AlertCircle
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { notificationService } from '../../services/notificationService';
 
 const AddPatient: React.FC = () => {
   const navigate = useNavigate();
@@ -87,36 +88,18 @@ const AddPatient: React.FC = () => {
 
       console.log('Patient created:', data);
 
-      // Notify doctors/supervisors/admins (mock approach: broadcast to role holders if we had role query)
-      // For real Supabase later: either a DB trigger or serverless function.
-      try {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: '1', // doctor mock id
-            title: 'New Patient Pending Approval',
-            message: `${formData.firstName} ${formData.lastName} requires approval`,
-            type: 'approval',
-            related_entity_id: data?.id,
-            related_entity_type: 'patient'
-          })
-          .select()
-          .single();
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: '4', // admin mock id
-            title: 'New Patient Pending Approval',
-            message: `${formData.firstName} ${formData.lastName} requires approval`,
-            type: 'approval',
-            related_entity_id: data?.id,
-            related_entity_type: 'patient'
-          })
-          .select()
-          .single();
-      } catch (notifyErr) {
-        console.warn('Notification insert failed (mock):', notifyErr);
+      // Notify all supervisors and admins about the new patient pending approval
+      if (data) {
+        const patientName = `${formData.firstName} ${formData.lastName}`;
+        const studentName = user.fullName || `${user.firstName} ${user.lastName}`;
+
+        await notificationService.notifyPatientPendingApproval(
+          data.id,
+          patientName,
+          studentName
+        );
       }
+
       setIsSuccess(true);
 
       // Reset form after success

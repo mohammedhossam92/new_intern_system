@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Filter, User, Phone, Mail, Calendar, ChevronRight, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { notificationService } from '../../services/notificationService';
 
 interface Patient {
   id: string;
@@ -35,7 +36,7 @@ const PatientList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [patients, setPatients] = useState<Patient[]>([]);
-  const canApprove = user && (user.role === 'Supervisor' || user.role === 'Admin' || user.role === 'Doctor');
+  const canApprove = user && (user.role === 'Admin' || user.role === 'Doctor');
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -44,8 +45,12 @@ const PatientList: React.FC = () => {
       const data = (response?.data as unknown as PatientRow[]) || [];
       const mapped: Patient[] = data
         .filter(p => {
-          if (user.role === 'Intern/Student') return p.added_by === user.id;  // Fixed: matches DB column
-          return true; // approvers see all
+          // Students see their OWN patients (all statuses: pending, approved, rejected)
+          if (user.role === 'Intern/Student') {
+            return p.added_by === user.id;
+          }
+          // Approvers (Doctors/Admins) see ALL patients from ALL students
+          return true;
         })
         .map(p => ({
           id: p.id,
@@ -61,6 +66,68 @@ const PatientList: React.FC = () => {
       setPatients(mapped);
     };
     loadPatients();
+
+    // Set up real-time subscription for patients table
+    const channel = supabase
+      .channel('patients-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'patients'
+        },
+        (payload) => {
+          console.log('Patient change detected:', payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newPatient = payload.new as PatientRow;
+            // Check if this patient should be visible to current user
+            if (user?.role === 'Intern/Student' && newPatient.added_by !== user.id) {
+              return; // Don't show other students' patients
+            }
+
+            const mapped: Patient = {
+              id: newPatient.id,
+              firstName: newPatient.first_name,
+              lastName: newPatient.last_name,
+              email: newPatient.email,
+              phone: newPatient.phone,
+              dateOfBirth: newPatient.date_of_birth,
+              status: newPatient.status,
+              addedDate: newPatient.created_at || new Date().toISOString(),
+              treatmentCount: 0
+            };
+            setPatients(prev => [mapped, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedPatient = payload.new as PatientRow;
+            setPatients(prev =>
+              prev.map(p =>
+                p.id === updatedPatient.id
+                  ? {
+                      ...p,
+                      firstName: updatedPatient.first_name,
+                      lastName: updatedPatient.last_name,
+                      email: updatedPatient.email,
+                      phone: updatedPatient.phone,
+                      dateOfBirth: updatedPatient.date_of_birth,
+                      status: updatedPatient.status
+                    }
+                  : p
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedPatient = payload.old as PatientRow;
+            setPatients(prev => prev.filter(p => p.id !== deletedPatient.id));
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const filteredPatients = patients.filter(patient => {
@@ -100,8 +167,13 @@ const PatientList: React.FC = () => {
   };
 
   const handlePatientClick = (patient: Patient) => {
+    // Students can only view approved patients
+    // Supervisors can view all patients
     if (patient.status === 'approved' || canApprove) {
       navigate(`/patient/${patient.id}`);
+    } else {
+      // Patient is pending/rejected and user is student - don't navigate
+      console.log('Patient not approved yet - cannot view');
     }
   };
 
@@ -115,6 +187,92 @@ const PatientList: React.FC = () => {
       age--;
     }
     return age;
+  };
+
+  const handleApprovePatient = async (patientId: string, patientName: string) => {
+    try {
+      // Get patient details to find the student who added it
+      const { data: patientData } = await supabase
+        .from('patients')
+        .select('added_by')
+        .eq('id', patientId)
+        .single();
+
+      if (!patientData) {
+        console.error('Patient not found');
+        return;
+      }
+
+      // Update patient status to approved
+      const { error } = await supabase
+        .from('patients')
+        .update({ status: 'approved' })
+        .eq('id', patientId);
+
+      if (error) throw error;
+
+      // Update local state
+      setPatients(prev => prev.map(p =>
+        p.id === patientId ? { ...p, status: 'approved' as const } : p
+      ));
+
+      // Notify the student who added the patient
+      const approverName = user?.fullName || `${user?.firstName} ${user?.lastName}`;
+      await notificationService.notifyPatientApprovalStatus(
+        patientData.added_by,
+        patientId,
+        patientName,
+        true,
+        approverName
+      );
+
+      console.log('Patient approved and notification sent');
+    } catch (error) {
+      console.error('Error approving patient:', error);
+    }
+  };
+
+  const handleRejectPatient = async (patientId: string, patientName: string) => {
+    try {
+      // Get patient details to find the student who added it
+      const { data: patientData } = await supabase
+        .from('patients')
+        .select('added_by')
+        .eq('id', patientId)
+        .single();
+
+      if (!patientData) {
+        console.error('Patient not found');
+        return;
+      }
+
+      // Update patient status to rejected
+      const { error } = await supabase
+        .from('patients')
+        .update({ status: 'rejected' })
+        .eq('id', patientId);
+
+      if (error) throw error;
+
+      // Update local state
+      setPatients(prev => prev.map(p =>
+        p.id === patientId ? { ...p, status: 'rejected' as const } : p
+      ));
+
+      // Notify the student who added the patient
+      const approverName = user?.fullName || `${user?.firstName} ${user?.lastName}`;
+      await notificationService.notifyPatientApprovalStatus(
+        patientData.added_by,
+        patientId,
+        patientName,
+        false,
+        approverName
+      );
+
+      console.log('Patient rejected and notification sent');
+    } catch (error) {
+      console.error('Error rejecting patient:', error);
+    }
   };
 
   return (
@@ -192,8 +350,10 @@ const PatientList: React.FC = () => {
             {filteredPatients.map((patient) => (
               <div
                 key={patient.id}
-                className={`p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
-                  patient.status === 'approved' ? 'cursor-pointer' : 'cursor-default'
+                className={`p-6 transition-colors ${
+                  patient.status === 'approved' || canApprove
+                    ? 'hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer'
+                    : 'cursor-not-allowed opacity-75'
                 }`}
                 onClick={() => handlePatientClick(patient)}
               >
@@ -210,22 +370,26 @@ const PatientList: React.FC = () => {
                           </h3>
                           {getStatusBadge(patient.status)}
                           {canApprove && patient.status === 'pending' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                (async () => {
-                                  if (isMockSupabase) {
-                                    await supabase.from('patients').update({ status: 'approved' }).eq('id', patient.id).execute();
-                                  } else {
-                                    await supabase.from('patients').update({ status: 'approved' }).eq('id', patient.id);
-                                  }
-                                  setPatients(prev => prev.map(p => p.id === patient.id ? { ...p, status: 'approved' } : p));
-                                })();
-                              }}
-                              className="px-2 py-0.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-                            >
-                              Approve
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApprovePatient(patient.id, patient.firstName + ' ' + patient.lastName);
+                                }}
+                                className="px-3 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRejectPatient(patient.id, patient.firstName + ' ' + patient.lastName);
+                                }}
+                                className="px-3 py-1 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           )}
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -254,10 +418,24 @@ const PatientList: React.FC = () => {
                       </div>
                     </div>
 
-                    {patient.status === 'pending' && (
+                    {patient.status === 'pending' && !canApprove && (
                       <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                         <p className="text-sm text-amber-800 dark:text-amber-300">
-                          This patient is awaiting admin approval before treatment can begin.
+                          ⏳ <strong>Awaiting Approval:</strong> This patient is pending supervisor approval. You cannot view details or add treatments until approved. You'll be notified once the decision is made.
+                        </p>
+                      </div>
+                    )}
+                    {patient.status === 'pending' && canApprove && (
+                      <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-sm text-blue-800 dark:text-blue-300">
+                          📋 Review patient information and approve or reject to notify the student.
+                        </p>
+                      </div>
+                    )}
+                    {patient.status === 'rejected' && !canApprove && (
+                      <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                        <p className="text-sm text-red-800 dark:text-red-300">
+                          ❌ <strong>Rejected:</strong> This patient was not approved. Please contact your supervisor for details and guidance on next steps.
                         </p>
                       </div>
                     )}
@@ -266,6 +444,13 @@ const PatientList: React.FC = () => {
                   {(patient.status === 'approved' || canApprove) && (
                     <div className="ml-4 flex-shrink-0">
                       <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                  )}
+                  {patient.status !== 'approved' && !canApprove && (
+                    <div className="ml-4 flex-shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                        <span className="text-slate-400 dark:text-slate-500 text-xs">🔒</span>
+                      </div>
                     </div>
                   )}
                 </div>

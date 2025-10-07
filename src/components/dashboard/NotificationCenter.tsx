@@ -25,17 +25,54 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
 
   useEffect(() => {
     if (!isOpen || !user) return;
+
     const load = async () => {
       const { data } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
-        .execute();
-  const rows = (data as unknown as Notification[]) || [];
+        .eq('user_id', user.id);
+      const rows = (data as unknown as Notification[]) || [];
       rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setNotifications(rows);
     };
     load();
+
+    // Set up real-time subscription for notifications
+    const channel = supabase
+      .channel('notifications-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}` // Only listen to current user's notifications
+        },
+        (payload) => {
+          console.log('Notification change detected:', payload);
+
+          if (payload.eventType === 'INSERT') {
+            const newNotification = payload.new as Notification;
+            setNotifications(prev => [newNotification, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedNotification = payload.new as Notification;
+            setNotifications(prev =>
+              prev.map(n =>
+                n.id === updatedNotification.id ? updatedNotification : n
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedNotification = payload.old as Notification;
+            setNotifications(prev => prev.filter(n => n.id !== deletedNotification.id));
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isOpen, user]);
 
   const getIcon = (type: Notification['type']) => {
@@ -50,13 +87,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
   };
 
   const markAsRead = async (id: string) => {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id).execute();
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   };
 
   const markAllAsRead = async () => {
     if (!user) return;
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).execute();
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id);
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
@@ -74,7 +111,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
 
   const approveFromNotification = async (notif: Notification) => {
     if (notif.related_entity_type === 'patient' && notif.related_entity_id) {
-      await supabase.from('patients').update({ status: 'approved' }).eq('id', notif.related_entity_id).execute();
+      await supabase.from('patients').update({ status: 'approved' }).eq('id', notif.related_entity_id);
       // Mark notification as read after approval
       await markAsRead(notif.id);
     }

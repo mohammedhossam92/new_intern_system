@@ -2,13 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import CreateDoctorAccount from '../admin/CreateDoctorAccount';
-import { 
-  User, 
-  Bell, 
-  FileText, 
-  Users, 
-  UserCheck, 
-  ClipboardList, 
+import { useRealtimeUsers } from '../../hooks/useRealtimeUsers';
+import {
+  User,
+  Users,
   LogOut,
   Menu,
   X,
@@ -16,9 +13,7 @@ import {
   Moon,
   UserPlus,
   Settings
-} from 'lucide-react';
-
-interface Tab {
+} from 'lucide-react';interface Tab {
   name: string;
   icon: React.ReactNode;
 }
@@ -222,7 +217,7 @@ const DoctorManagement: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Doctor Management</h2>
-      
+
       <div className="grid grid-cols-1 gap-6">
         <div className="bg-white dark:bg-slate-800 shadow overflow-hidden rounded-lg">
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
@@ -241,84 +236,99 @@ const DoctorManagement: React.FC = () => {
 };
 
 const StudentManagement: React.FC = () => {
-  // Mock student data
-  const students = [
-    { id: 1, name: 'John Smith', email: 'john.smith@example.com', university: 'University A', status: 'Active' },
-    { id: 2, name: 'Emily Johnson', email: 'emily.johnson@example.com', university: 'University B', status: 'Active' },
-    { id: 3, name: 'Michael Brown', email: 'michael.brown@example.com', university: 'University A', status: 'Inactive' },
-    { id: 4, name: 'Sarah Davis', email: 'sarah.davis@example.com', university: 'University C', status: 'Active' },
-  ];
+  const { users: students, loading } = useRealtimeUsers({
+    role: 'Intern/Student'
+  });
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Student Management</h2>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500 dark:text-gray-400">Loading students...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Student Management</h2>
-      
+
       <div className="bg-white dark:bg-slate-800 shadow overflow-hidden rounded-lg">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">All Students</h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">View and manage all student accounts</p>
+          <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+            All Students ({students.length})
+          </h3>
+          <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+            View and manage all student accounts - updates in real-time
+          </p>
         </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-slate-700">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">University</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                <th scope="col" className="relative px-6 py-3">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {students.map((student) => (
-                <tr key={student.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                          <span className="text-blue-600 dark:text-blue-200 font-medium">{student.name.charAt(0)}</span>
+
+        {students.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <Users className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">No students registered yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-slate-700">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">City</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Year</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {students.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-slate-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                            <span className="text-blue-600 dark:text-blue-200 font-medium">
+                              {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {student.firstName} {student.lastName}
+                          </div>
                         </div>
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">{student.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {student.email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {student.university}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${student.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
-                      ${student.status === 'Inactive' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : ''}
-                    `}>
-                      {student.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <a href="#" className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">View</a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {student.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {student.city || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {student.classYear || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
-};
-
-const SystemSettings: React.FC = () => {
+};const SystemSettings: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">System Settings</h2>
-      
+
       <div className="bg-white dark:bg-slate-800 shadow overflow-hidden rounded-lg">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">General Settings</h3>

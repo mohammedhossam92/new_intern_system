@@ -185,5 +185,82 @@ export const notificationService = {
       console.error('Error creating bulk notifications:', error);
       return false;
     }
+  },
+
+  // Get all supervisors and admins for patient approval notifications
+  getSupervisorsAndAdmins: async (): Promise<string[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .in('role', ['Doctor', 'Admin']);
+
+      if (error) throw error;
+      return data ? data.map(user => user.id) : [];
+    } catch (error) {
+      console.error('Error fetching supervisors and admins:', error);
+      return [];
+    }
+  },
+
+  // Notify supervisors and admins about new patient pending approval
+  notifyPatientPendingApproval: async (
+    patientId: string,
+    patientName: string,
+    studentName: string
+  ): Promise<boolean> => {
+    try {
+      const supervisorIds = await notificationService.getSupervisorsAndAdmins();
+
+      if (supervisorIds.length === 0) {
+        console.warn('No supervisors or admins found to notify');
+        return false;
+      }
+
+      const success = await notificationService.createBulkNotifications(
+        supervisorIds,
+        {
+          title: 'New Patient Pending Approval',
+          message: `${studentName} has added a new patient "${patientName}" that requires your approval.`,
+          type: 'info',
+          isRead: false,
+          relatedEntityId: patientId,
+          relatedEntityType: 'patient'
+        }
+      );
+
+      return success;
+    } catch (error) {
+      console.error('Error notifying patient pending approval:', error);
+      return false;
+    }
+  },
+
+  // Notify student about patient approval status
+  notifyPatientApprovalStatus: async (
+    studentId: string,
+    patientId: string,
+    patientName: string,
+    approved: boolean,
+    approverName: string
+  ): Promise<boolean> => {
+    try {
+      const notification = await notificationService.createNotification({
+        userId: studentId,
+        title: approved ? 'Patient Approved' : 'Patient Rejected',
+        message: approved
+          ? `Your patient "${patientName}" has been approved by ${approverName}. You can now add treatments and procedures.`
+          : `Your patient "${patientName}" has been rejected by ${approverName}. Please contact your supervisor for more information.`,
+        type: approved ? 'success' : 'warning',
+        isRead: false,
+        relatedEntityId: patientId,
+        relatedEntityType: 'patient'
+      });
+
+      return notification !== null;
+    } catch (error) {
+      console.error('Error notifying patient approval status:', error);
+      return false;
+    }
   }
 };
