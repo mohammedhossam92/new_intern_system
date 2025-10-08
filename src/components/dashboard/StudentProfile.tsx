@@ -5,7 +5,13 @@ import QuickActions from './QuickActions';
 import RecentActivity from './RecentActivity';
 import { User, Mail, Phone, GraduationCap, Calendar, MapPin, Edit2, Save, X, Building, Clock, CheckCircle, Plus } from 'lucide-react';
 
-const StudentProfile: React.FC = () => {
+type TabType = 'profile' | 'statistics' | 'add-patient' | 'patients' | 'appointments';
+
+interface StudentProfileProps {
+  onNavigate?: (tab: TabType) => void;
+}
+
+const StudentProfile: React.FC<StudentProfileProps> = ({ onNavigate }) => {
   const { user, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [hasBeenSaved, setHasBeenSaved] = useState(false); // Track if profile has been saved before
@@ -148,8 +154,25 @@ const StudentProfile: React.FC = () => {
   };
 
   const handleQuickAction = (action: string) => {
-    // In a real app, this would navigate to the appropriate section
-    console.log('Quick action clicked:', action);
+    // Navigate to the appropriate tab based on the action
+    if (onNavigate) {
+      switch (action) {
+        case 'add-patient':
+          onNavigate('add-patient');
+          break;
+        case 'schedule-appointment':
+          onNavigate('appointments');
+          break;
+        case 'view-statistics':
+          onNavigate('statistics');
+          break;
+        case 'recent-patients':
+          onNavigate('patients');
+          break;
+        default:
+          console.log('Unknown action:', action);
+      }
+    }
   };
 
   // Check if a field should be disabled

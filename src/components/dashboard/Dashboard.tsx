@@ -8,7 +8,7 @@ import AddPatient from './AddPatient';
 import PatientList from './PatientList';
 import AppointmentScheduler from './AppointmentScheduler';
 import NotificationCenter from './NotificationCenter';
-import { User, BarChart3, UserPlus, Users, LogOut, Menu, X, Calendar, Bell, Activity } from 'lucide-react';
+import { User, BarChart3, UserPlus, Users, LogOut, Menu, X, Calendar, Bell } from 'lucide-react';
 
 type TabType = 'profile' | 'statistics' | 'add-patient' | 'patients' | 'appointments';
 
@@ -35,7 +35,7 @@ const Dashboard: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'profile':
-        return <StudentProfile />;
+        return <StudentProfile onNavigate={setActiveTab} />;
       case 'statistics':
         return <Statistics />;
       case 'add-patient':
@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
       case 'appointments':
         return <AppointmentScheduler />;
       default:
-        return <StudentProfile />;
+        return <StudentProfile onNavigate={setActiveTab} />;
     }
   };
 
