@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { User, Mail, Phone, GraduationCap, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 
+type UserRole = 'Intern/Student' | 'Doctor' | 'Admin';
+
 const SignUp: React.FC = () => {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -16,24 +18,80 @@ const SignUp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<{
+    fullName?: string;
+    mobile?: string;
+  }>({});
 
   const { signup } = useAuth();
   const navigate = useNavigate();
+
+  // Validation functions
+  const validateFullName = (name: string): string | undefined => {
+    const nameParts = name.trim().split(/\s+/);
+    if (nameParts.length < 4) {
+      return 'Full name must contain at least 4 names (e.g., First Middle Third Last)';
+    }
+    return undefined;
+  };
+
+  const validateMobile = (mobile: string): string | undefined => {
+    const cleanedMobile = mobile.replace(/\s+/g, '');
+    if (!/^01\d{9}$/.test(cleanedMobile)) {
+      return 'Mobile number must be 11 digits and start with 01';
+    }
+    return undefined;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setValidationErrors({});
+
+    // Validate full name
+    const fullNameError = validateFullName(formData.fullName);
+    if (fullNameError) {
+      setValidationErrors(prev => ({ ...prev, fullName: fullNameError }));
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate mobile
+    const mobileError = validateMobile(formData.mobile);
+    if (mobileError) {
+      setValidationErrors(prev => ({ ...prev, mobile: mobileError }));
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      const success = await signup(formData);
+      // Split full name into parts
+      const nameParts = formData.fullName.trim().split(/\s+/);
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' '); // Everything after first name
+
+      // Transform form data to match User interface
+      const userDataForSignup = {
+        firstName,
+        lastName,
+        fullName: formData.fullName,
+        email: formData.email || '', // Use empty string if email is not provided
+        phone: formData.mobile, // Map mobile to phone
+        mobile: formData.mobile,
+        university: formData.university,
+        role: formData.role as UserRole,
+        password: formData.password,
+      };
+
+      const success = await signup(userDataForSignup);
       if (success) {
         setIsSuccess(true);
         setTimeout(() => {
           navigate('/signin');
         }, 3000);
       }
-    } catch (err) {
+    } catch {
       setError('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
@@ -41,10 +99,21 @@ const SignUp: React.FC = () => {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }));
+
+    // Clear validation error for the field being edited
+    if (validationErrors[name as keyof typeof validationErrors]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name as keyof typeof validationErrors];
+        return newErrors;
+      });
+    }
   };
 
   if (isSuccess) {
@@ -111,7 +180,7 @@ const SignUp: React.FC = () => {
             {/* Full Name Field */}
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Full Name
+                Full Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -124,16 +193,29 @@ const SignUp: React.FC = () => {
                   required
                   value={formData.fullName}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:bg-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  placeholder="Enter your full name"
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors dark:bg-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
+                    validationErrors.fullName
+                      ? 'border-red-500 dark:border-red-500 focus:border-red-500'
+                      : 'border-slate-300 dark:border-slate-700 focus:border-blue-500'
+                  }`}
+                  placeholder="Enter at least 4 names (e.g., First Middle Third Last)"
                 />
               </div>
+              {validationErrors.fullName && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {validationErrors.fullName}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Must contain at least 4 names separated by spaces
+              </p>
             </div>
 
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Email Address
+                Email Address <span className="text-slate-400 text-xs">(Optional)</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -143,11 +225,10 @@ const SignUp: React.FC = () => {
                   id="email"
                   name="email"
                   type="email"
-                  required
                   value={formData.email}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:bg-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  placeholder="Enter your email"
+                  placeholder="Enter your email (optional)"
                 />
               </div>
             </div>
@@ -155,7 +236,7 @@ const SignUp: React.FC = () => {
             {/* Mobile Number Field */}
             <div>
               <label htmlFor="mobile" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Mobile Number
+                Mobile Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -168,10 +249,24 @@ const SignUp: React.FC = () => {
                   required
                   value={formData.mobile}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:bg-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  placeholder="Enter your mobile number"
+                  maxLength={11}
+                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors dark:bg-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
+                    validationErrors.mobile
+                      ? 'border-red-500 dark:border-red-500 focus:border-red-500'
+                      : 'border-slate-300 dark:border-slate-700 focus:border-blue-500'
+                  }`}
+                  placeholder="01XXXXXXXXX"
                 />
               </div>
+              {validationErrors.mobile && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {validationErrors.mobile}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Must be 11 digits and start with 01 (e.g., 01012345678)
+              </p>
             </div>
 
             {/* University Field */}

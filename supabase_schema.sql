@@ -8,7 +8,7 @@ CREATE TABLE users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
-  email VARCHAR(255) NOT NULL UNIQUE,
+  email VARCHAR(255) UNIQUE, -- Optional: can be NULL or empty string
   phone VARCHAR(20),
   role VARCHAR(20) NOT NULL CHECK (role IN ('Intern/Student', 'Doctor', 'Admin')),
   profile_image TEXT,
@@ -132,14 +132,14 @@ CREATE POLICY users_insert_policy ON users
   FOR INSERT WITH CHECK (auth.uid() = id); -- Users can only insert their own profile
 
 CREATE POLICY users_update_policy ON users
-  FOR UPDATE USING (auth.uid() = id OR 
+  FOR UPDATE USING (auth.uid() = id OR
                    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'Admin')); -- Users can update their own profile or admins can update any
 
 -- Internship periods policies
 ALTER TABLE internship_periods ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY internship_periods_select_policy ON internship_periods
-  FOR SELECT USING (user_id = auth.uid() OR 
+  FOR SELECT USING (user_id = auth.uid() OR
                    supervisor_id = auth.uid() OR
                    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('Doctor', 'Admin')));
 
@@ -259,7 +259,7 @@ BEGIN
       NEW.student_id,
       'Treatment Status Updated',
       'Your treatment has been updated to ' || NEW.status,
-      CASE 
+      CASE
         WHEN NEW.status = 'approved' THEN 'success'
         WHEN NEW.status = 'rejected' THEN 'error'
         ELSE 'info'
@@ -267,7 +267,7 @@ BEGIN
       NEW.id,
       'treatment'
     );
-    
+
     -- Notify supervisor if assigned
     IF NEW.supervisor_id IS NOT NULL THEN
       INSERT INTO notifications (user_id, title, message, type, related_entity_id, related_entity_type)
@@ -281,7 +281,7 @@ BEGIN
       );
     END IF;
   END IF;
-  
+
   RETURN NEW;
 END;
 $$;
@@ -301,7 +301,7 @@ DECLARE
 BEGIN
   -- Get all doctors
   SELECT array_agg(id) INTO doctor_ids FROM users WHERE role = 'Doctor';
-  
+
   -- Notify each doctor
   IF doctor_ids IS NOT NULL THEN
     FOR i IN 1..array_length(doctor_ids, 1) LOOP
@@ -316,7 +316,7 @@ BEGIN
       );
     END LOOP;
   END IF;
-  
+
   RETURN NEW;
 END;
 $$;
@@ -343,7 +343,7 @@ BEGIN
     NEW.id,
     'appointment'
   );
-  
+
   -- Notify supervisor if assigned
   IF NEW.supervisor_id IS NOT NULL THEN
     INSERT INTO notifications (user_id, title, message, type, related_entity_id, related_entity_type)
@@ -356,7 +356,7 @@ BEGIN
       'appointment'
     );
   END IF;
-  
+
   RETURN NEW;
 END;
 $$;

@@ -30,7 +30,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (emailOrMobile: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   signup: (userData: Omit<User, 'id'> & { password: string }) => Promise<boolean>;
   updateProfile: (userData: Partial<User>) => Promise<boolean>;
@@ -147,13 +147,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (emailOrMobile: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+
+      // Determine if input is email or mobile number
+      // Mobile format: 11 digits starting with 01 (Egyptian format)
+      const isMobile = /^01\d{9}$/.test(emailOrMobile.replace(/\s+/g, ''));
+
+      let authData;
+      let authError;
+
+      if (isMobile) {
+        // If it's a mobile number, find user by phone first
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('email')
+          .eq('phone', emailOrMobile.replace(/\s+/g, ''))
+          .maybeSingle();
+
+        if (userError || !userData || !userData.email) {
+          throw new Error('No account found with this mobile number');
+        }
+
+        // Use the email found to sign in
+        const result = await supabase.auth.signInWithPassword({
+          email: userData.email,
+          password
+        });
+        authData = result.data;
+        authError = result.error;
+      } else {
+        // Sign in with email directly
+        const result = await supabase.auth.signInWithPassword({
+          email: emailOrMobile,
+          password
+        });
+        authData = result.data;
+        authError = result.error;
+      }
 
       if (authError) throw authError;
 
