@@ -16,6 +16,10 @@ export interface Patient {
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
   addedBy: string;
+  addedByName?: string; // NEW: Name of student who added
+  approvedBy?: string; // NEW: ID of supervisor who approved
+  approvedByName?: string; // NEW: Name of supervisor who approved
+  approvedAt?: string; // NEW: When it was approved
   addedDate: string;
   lastVisit?: string;
 }
@@ -36,6 +40,10 @@ const mapDbPatientToPatient = (dbPatient: any): Patient => ({
   notes: dbPatient.notes,
   status: dbPatient.status,
   addedBy: dbPatient.added_by,
+  addedByName: dbPatient.added_by_user ? `${dbPatient.added_by_user.first_name} ${dbPatient.added_by_user.last_name}` : undefined,
+  approvedBy: dbPatient.approved_by,
+  approvedByName: dbPatient.approved_by_user ? `${dbPatient.approved_by_user.first_name} ${dbPatient.approved_by_user.last_name}` : undefined,
+  approvedAt: dbPatient.approved_at,
   addedDate: dbPatient.created_at,
   lastVisit: dbPatient.last_visit
 });
@@ -46,7 +54,11 @@ export const patientService = {
     try {
       const { data, error } = await supabase
         .from('patients')
-        .select('*')
+        .select(`
+          *,
+          added_by_user:users!patients_added_by_fkey(first_name, last_name),
+          approved_by_user:users!patients_approved_by_fkey(first_name, last_name)
+        `)
         .eq('id', patientId)
         .single();
 
@@ -61,12 +73,18 @@ export const patientService = {
   // Get all patients (with optional filters)
   getAllPatients: async (filters?: { status?: 'pending' | 'approved' | 'rejected', addedBy?: string }): Promise<Patient[]> => {
     try {
-      let query = supabase.from('patients').select('*');
-      
+      let query = supabase
+        .from('patients')
+        .select(`
+          *,
+          added_by_user:users!patients_added_by_fkey(first_name, last_name),
+          approved_by_user:users!patients_approved_by_fkey(first_name, last_name)
+        `);
+
       if (filters?.status) {
         query = query.eq('status', filters.status);
       }
-      
+
       if (filters?.addedBy) {
         query = query.eq('added_by', filters.addedBy);
       }
@@ -79,9 +97,7 @@ export const patientService = {
       console.error('Error fetching patients:', error);
       return [];
     }
-  },
-
-  // Add a new patient
+  },  // Add a new patient
   addPatient: async (patientData: Omit<Patient, 'id' | 'addedDate'>): Promise<Patient | null> => {
     try {
       const { data, error } = await supabase
@@ -144,11 +160,23 @@ export const patientService = {
   },
 
   // Update patient status (approve/reject)
-  updatePatientStatus: async (patientId: string, status: 'pending' | 'approved' | 'rejected'): Promise<boolean> => {
+  updatePatientStatus: async (
+    patientId: string,
+    status: 'pending' | 'approved' | 'rejected',
+    approvedByUserId?: string
+  ): Promise<boolean> => {
     try {
+      const updateData: Record<string, any> = { status };
+
+      // If approving, record who approved and when
+      if (status === 'approved' && approvedByUserId) {
+        updateData.approved_by = approvedByUserId;
+        updateData.approved_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('patients')
-        .update({ status })
+        .update(updateData)
         .eq('id', patientId);
 
       if (error) throw error;

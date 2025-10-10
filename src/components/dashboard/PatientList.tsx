@@ -14,6 +14,9 @@ interface Patient {
   dateOfBirth: string;
   status: 'pending' | 'approved' | 'rejected';
   addedDate: string;
+  addedByName?: string; // NEW: Name of student who added
+  approvedByName?: string; // NEW: Name of supervisor who approved
+  approvedAt?: string; // NEW: When it was approved
   lastVisit?: string;
   treatmentCount: number;
 }
@@ -41,29 +44,71 @@ const PatientList: React.FC = () => {
   useEffect(() => {
     const loadPatients = async () => {
       if (!user) return;
-      const response = await supabase.from('patients').select('*');
-      const data = (response?.data as unknown as PatientRow[]) || [];
-      const mapped: Patient[] = data
-        .filter(p => {
-          // Students see their OWN patients (all statuses: pending, approved, rejected)
-          if (user.role === 'Intern/Student') {
-            return p.added_by === user.id;
-          }
-          // Approvers (Doctors/Admins) see ALL patients from ALL students
-          return true;
-        })
-        .map(p => ({
-          id: p.id,
-          firstName: p.first_name,
-          lastName: p.last_name,
-          email: p.email,
-          phone: p.phone,
-          dateOfBirth: p.date_of_birth,
-          status: p.status,
-          addedDate: p.created_at || new Date().toISOString(),
-          treatmentCount: 0
-        }));
-      setPatients(mapped);
+
+      try {
+        const response = await supabase
+          .from('patients')
+          .select(`
+            *,
+            added_by_user:users!patients_added_by_fkey(first_name, last_name),
+            approved_by_user:users!patients_approved_by_fkey(first_name, last_name)
+          `);
+
+        if (response.error) {
+          console.error('Error loading patients:', response.error);
+          // Fallback: try loading without joins if there's an error
+          const fallbackResponse = await supabase.from('patients').select('*');
+          const fallbackData = (fallbackResponse?.data as unknown as any[]) || [];
+          const mapped: Patient[] = fallbackData
+            .filter((p: any) => {
+              if (user.role === 'Intern/Student') {
+                return p.added_by === user.id;
+              }
+              return true;
+            })
+            .map((p: any) => ({
+              id: p.id,
+              firstName: p.first_name,
+              lastName: p.last_name,
+              email: p.email,
+              phone: p.phone,
+              dateOfBirth: p.date_of_birth,
+              status: p.status,
+              addedDate: p.created_at || new Date().toISOString(),
+              treatmentCount: 0
+            }));
+          setPatients(mapped);
+          return;
+        }
+
+        const data = (response?.data as unknown as any[]) || [];
+        const mapped: Patient[] = data
+          .filter((p: any) => {
+            // Students see their OWN patients (all statuses: pending, approved, rejected)
+            if (user.role === 'Intern/Student') {
+              return p.added_by === user.id;
+            }
+            // Approvers (Doctors/Admins) see ALL patients from ALL students
+            return true;
+          })
+          .map((p: any) => ({
+            id: p.id,
+            firstName: p.first_name,
+            lastName: p.last_name,
+            email: p.email,
+            phone: p.phone,
+            dateOfBirth: p.date_of_birth,
+            status: p.status,
+            addedByName: p.added_by_user ? `${p.added_by_user.first_name} ${p.added_by_user.last_name}` : undefined,
+            approvedByName: p.approved_by_user ? `${p.approved_by_user.first_name} ${p.approved_by_user.last_name}` : undefined,
+            approvedAt: p.approved_at,
+            addedDate: p.created_at || new Date().toISOString(),
+            treatmentCount: 0
+          }));
+        setPatients(mapped);
+      } catch (error) {
+        console.error('Error in loadPatients:', error);
+      }
     };
     loadPatients();
 
@@ -206,7 +251,11 @@ const PatientList: React.FC = () => {
       // Update patient status to approved
       const { error } = await supabase
         .from('patients')
-        .update({ status: 'approved' })
+        .update({
+          status: 'approved',
+          approved_by: user?.id,
+          approved_at: new Date().toISOString()
+        })
         .eq('id', patientId);
 
       if (error) throw error;
@@ -394,6 +443,8 @@ const PatientList: React.FC = () => {
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
                           Age {calculateAge(patient.dateOfBirth)} • {patient.treatmentCount} treatments
+                          {patient.addedByName && ` • Added by: ${patient.addedByName}`}
+                          {patient.approvedByName && patient.status === 'approved' && ` • Approved by: ${patient.approvedByName}`}
                         </p>
                       </div>
                     </div>

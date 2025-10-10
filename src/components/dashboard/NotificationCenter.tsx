@@ -111,7 +111,14 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
 
   const approveFromNotification = async (notif: Notification) => {
     if (notif.related_entity_type === 'patient' && notif.related_entity_id) {
-      await supabase.from('patients').update({ status: 'approved' }).eq('id', notif.related_entity_id);
+      await supabase
+        .from('patients')
+        .update({
+          status: 'approved',
+          approved_by: user?.id,
+          approved_at: new Date().toISOString()
+        })
+        .eq('id', notif.related_entity_id);
       // Mark notification as read after approval
       await markAsRead(notif.id);
     }

@@ -74,18 +74,11 @@ const DoctorDashboard: React.FC = () => {
           <div className="flex items-center">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <svg
-                className="h-10 w-10 text-blue-600 dark:text-blue-400"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2.04c-.8-.01-1.61.13-2.38.4A6.97 6.97 0 0 0 6.1 4.99c-.4.4-.75.86-1.03 1.36-.32.6-.5 1.26-.5 1.93 0 .71.23 1.4.64 1.98.38.52.9.93 1.5 1.18-.04.09-.07.18-.09.27-.08.35-.12.71-.12 1.07 0 .9.25 1.78.7 2.55.48.8 1.15 1.45 1.95 1.86.8.42 1.7.63 2.6.63.92 0 1.83-.22 2.63-.64.8-.42 1.47-1.06 1.95-1.85.45-.77.7-1.65.7-2.55 0-.36-.04-.72-.12-1.07-.02-.09-.05-.18-.09-.27.6-.25 1.12-.66 1.5-1.18.41-.58.64-1.27.64-1.98 0-.67-.18-1.33-.5-1.93-.28-.5-.63-.96-1.03-1.36a6.97 6.97 0 0 0-3.52-2.55A7.1 7.1 0 0 0 12 2.04z" />
-                <path d="M8.5 10.53v-1.5c0-.83.67-1.5 1.5-1.5h4c.83 0 1.5.67 1.5 1.5v1.5" />
-              </svg>
+              <div className="h-12 w-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 3C9.8 3 8 4.8 8 7v3c0 1.5-0.5 2.5-1 3.5C6.5 14.5 6 15.5 6 17c0 2.2 1.8 4 4 4 1.1 0 2-0.9 2-2v-3c0-0.6 0.4-1 1-1s1 0.4 1 1v3c0 1.1 0.9 2 2 2 2.2 0 4-1.8 4-4 0-1.5-0.5-2.5-1-3.5-0.5-1-1-2-1-3.5V7c0-2.2-1.8-4-4-4z"/>
+                </svg>
+              </div>
             </div>
             <div className="ml-4">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dental Management</h1>

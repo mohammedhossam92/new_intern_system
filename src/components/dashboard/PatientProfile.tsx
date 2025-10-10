@@ -14,6 +14,7 @@ import {
   CheckCircle,
   AlertTriangle
 } from 'lucide-react';
+import DashboardLayout from './DashboardLayout';
 import ToothChart from './ToothChart';
 import TreatmentModal from './TreatmentModal';
 import { supabase } from '../../lib/supabase';
@@ -240,7 +241,11 @@ const PatientProfile: React.FC = () => {
     // Update patient status
     const { error } = await supabase
       .from('patients')
-      .update({ status: 'approved' })
+      .update({
+        status: 'approved',
+        approved_by: user?.id,
+        approved_at: new Date().toISOString()
+      })
       .eq('id', patientId);
 
     if (error) {
@@ -279,32 +284,40 @@ const PatientProfile: React.FC = () => {
     );
   }
 
+  const handleBack = () => {
+    // Navigate back to dashboard with patients tab active
+    navigate('/dashboard', { state: { activeTab: 'patients' } });
+  };
+
   // If student and patient not approved, block access
   if (patient && isStudent && patient.status !== 'approved') {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 text-center">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Access pending approval</h2>
-        <p className="text-slate-600 dark:text-slate-300 mb-6">This patient profile is not yet approved by a supervisor or admin.</p>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 hover:opacity-90"
-        >
-          Back to Dashboard
-        </button>
-      </div>
+      <DashboardLayout>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 text-center">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">Access pending approval</h2>
+          <p className="text-slate-600 dark:text-slate-300 mb-6">This patient profile is not yet approved by a supervisor or admin.</p>
+          <button
+            onClick={handleBack}
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 hover:opacity-90"
+          >
+            Back
+          </button>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors"
+          onClick={handleBack}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
+          Back
         </button>
         <div className="h-6 w-px bg-slate-300 dark:bg-slate-600" />
         <div>
@@ -658,7 +671,8 @@ const PatientProfile: React.FC = () => {
         patientName={`${patient.firstName} ${patient.lastName}`}
         onSave={handleSaveTreatment}
       />
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

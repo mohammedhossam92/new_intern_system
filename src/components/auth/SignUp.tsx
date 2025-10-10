@@ -146,14 +146,9 @@ const SignUp: React.FC = () => {
         <div className="text-center">
           <div className="relative group mx-auto mb-6">
             <div className="h-16 w-16 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-all duration-300 group-hover:scale-105">
-              {/* Proper Tooth Icon */}
-              <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C10.5 2 9 3.5 9 5C9 6.5 10.5 8 12 8C13.5 8 15 6.5 15 5C15 3.5 13.5 2 12 2Z" fill="currentColor"/>
-                <path d="M8 6C6.5 6 5 7.5 5 9C5 10.5 6.5 12 8 12C9.5 12 11 10.5 11 9C11 7.5 9.5 6 8 6Z" fill="currentColor"/>
-                <path d="M16 6C14.5 6 13 7.5 13 9C13 10.5 14.5 12 16 12C17.5 12 19 10.5 19 9C19 7.5 17.5 6 16 6Z" fill="currentColor"/>
-                <path d="M12 10C10.5 10 9 11.5 9 13C9 14.5 10.5 16 12 16C13.5 16 15 14.5 15 13C15 11.5 13.5 10 12 10Z" fill="currentColor"/>
-                <path d="M8 14C6.5 14 5 15.5 5 17C5 18.5 6.5 20 8 20C9.5 20 11 18.5 11 17C11 15.5 9.5 14 8 14Z" fill="currentColor"/>
-                <path d="M16 14C14.5 14 13 15.5 13 17C13 18.5 14.5 20 16 20C17.5 20 19 18.5 19 17C19 15.5 17.5 14 16 14Z" fill="currentColor"/>
+              {/* Modern Tooth Icon */}
+              <svg className="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3C9.8 3 8 4.8 8 7v3c0 1.5-0.5 2.5-1 3.5C6.5 14.5 6 15.5 6 17c0 2.2 1.8 4 4 4 1.1 0 2-0.9 2-2v-3c0-0.6 0.4-1 1-1s1 0.4 1 1v3c0 1.1 0.9 2 2 2 2.2 0 4-1.8 4-4 0-1.5-0.5-2.5-1-3.5-0.5-1-1-2-1-3.5V7c0-2.2-1.8-4-4-4z"/>
               </svg>
             </div>
             <div className="absolute -top-1 -right-1 h-4 w-4 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-full border-2 border-white dark:border-slate-800 shadow-lg flex items-center justify-center">
